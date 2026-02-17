@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kitchen Screen</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    :root {
+      --bg: #0a0a0a;
+      --card: #121212;
+      --border: #222;
+      --text: #f5f5f5;
+      --muted: #666;
+      --pending: #ff6b35;
+      --confirmed: #3b82f6;
+      --preparing: #a855f7;
+      --ready: #22c55e;
+      --urgent: #ef4444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ---- HEADER ---- */
+    header {
+      background: #111;
+      border-bottom: 2px solid #222;
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 16px; }
+
+    .header-logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #f5f5f5;
+    }
+
+    .live-dot {
+      width: 8px; height: 8px;
+      background: var(--ready);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .live-text { font-size: 0.75rem; color: var(--ready); font-weight: 600; letter-spacing: 0.1em; }
+    .clock { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #f5f5f5; }
+
+    /* ---- STATS BAR ---- */
+    .stats-bar {
+      display: flex;
+      gap: 1px;
+      background: #111;
+      border-bottom: 2px solid #222;
+    }
+
+    .stat-item {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--card);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stat-num { font-size: 1.8rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+
+    .stat-pending .stat-num { color: var(--pending); }
+    .stat-confirmed .stat-num { color: var(--confirmed); }
+    .stat-preparing .stat-num { color: var(--preparing); }
+    .stat-ready .stat-num { color: var(--ready); }
+
+    /* ---- COLUMNS ---- */
+    .kitchen-board {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      height: calc(100vh - 116px);
+    }
+
+    .column {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .column:last-child { border-right: none; }
+
+    .column-header {
+      position: sticky;
+      top: 0;
+      padding: 12px 16px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .col-pending .column-header { background: rgba(255,107,53,0.15); color: var(--pending); border-bottom: 2px solid var(--pending); }
+    .col-confirmed .column-header { background: rgba(59,130,246,0.15); color: var(--confirmed); border-bottom: 2px solid var(--confirmed); }
+    .col-preparing .column-header { background: rgba(168,85,247,0.15); color: var(--preparing); border-bottom: 2px solid var(--preparing); }
+    .col-ready .column-header { background: rgba(34,197,94,0.15); color: var(--ready); border-bottom: 2px solid var(--ready); }
+
+    .col-count {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(255,255,255,0.1);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+    }
+
+    /* ---- ORDER CARD ---- */
+    .order-card {
+      margin: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: transform 0.2s;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .order-card:hover { transform: translateY(-2px); }
+
+    .urgent { border-color: var(--urgent) !important; box-shadow: 0 0 12px rgba(239,68,68,0.2); }
+
+    .card-header {
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .order-id { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+    .time-chip {
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .time-ok { background: rgba(34,197,94,0.1); color: var(--ready); }
+    .time-warn { background: rgba(255,107,53,0.1); color: var(--pending); }
+    .time-urgent { background: rgba(239,68,68,0.2); color: var(--urgent); animation: blink 1s infinite; }
+
+    @keyframes blink { 50% { opacity: 0.5; } }
+
+    .card-items { padding: 10px 12px; }
+
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.85rem;
+    }
+
+    .order-item:last-child { border-bottom: none; }
+    .item-qty { font-weight: 700; color: #fff; margin-right: 8px; font-family: 'JetBrains Mono', monospace; }
+    .item-nm { color: #ccc; }
+    .item-note { font-size: 0.72rem; color: #ff9800; display: block; margin-top: 2px; }
+
+    .special-instr {
+      margin: 0 12px 8px;
+      padding: 6px 10px;
+      background: rgba(255,152,0,0.08);
+      border: 1px solid rgba(255,152,0,0.2);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: #ff9800;
+    }
+
+    .action-btns {
+      display: flex;
+      gap: 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: 'Space Grotesk', sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+
+    .action-btn:hover { opacity: 0.8; }
+    .action-btn:not(:last-child) { border-right: 1px solid var(--border); }
+
+    .btn-confirm { background: rgba(59,130,246,0.15); color: var(--confirmed); }
+    .btn-prepare { background: rgba(168,85,247,0.15); color: var(--preparing); }
+    .btn-ready   { background: rgba(34,197,94,0.15); color: var(--ready); }
+    .btn-cancel  { background: rgba(239,68,68,0.1); color: var(--urgent); }
+
+    .empty-col {
+      padding: 40px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .customer-name { font-size: 0.78rem; color: var(--muted); }
+
+    /* Sound alert indicator */
+    .alert-badge {
+      position: fixed;
+      top: 80px; right: 20px;
+      background: var(--urgent);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: none;
+      animation: bounceIn 0.4s;
+      z-index: 999;
+    }
+
+    @keyframes bounceIn {
+      0% { transform: scale(0.5); }
+      70% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="header-logo">🍳 KITCHEN DISPLAY</span>
+    <div class="live-dot"></div>
+    <span class="live-text">LIVE</span>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat-item stat-pending">
+    <div class="stat-num" id="cnt-pending">0</div>
+    <div class="stat-label">New Orders</div>
+  </div>
+  <div class="stat-item stat-confirmed">
+    <div class="stat-num" id="cnt-confirmed">0</div>
+    <div class="stat-label">Confirmed</div>
+  </div>
+  <div class="stat-item stat-preparing">
+    <div class="stat-num" id="cnt-preparing">0</div>
+    <div class="stat-label">Cooking</div>
+  </div>
+  <div class="stat-item stat-ready">
+    <div class="stat-num" id="cnt-ready">0</div>
+    <div class="stat-label">Ready</div>
+  </div>
+</div>
+
+<div class="kitchen-board">
+  <div class="column col-pending">
+    <div class="column-header">🔴 New Orders <span class="col-count" id="hdr-pending">0</span></div>
+    <div id="col-PENDING"></div>
+  </div>
+  <div class="column col-confirmed">
+    <div class="column-header">🔵 Confirmed <span class="col-count" id="hdr-confirmed">0</span></div>
+    <div id="col-CONFIRMED"></div>
+  </div>
+  <div class="column col-preparing">
+    <div class="column-header">🟣 Preparing <span class="col-count" id="hdr-preparing">0</span></div>
+    <div id="col-PREPARING"></div>
+  </div>
+  <div class="column col-ready">
+    <div class="column-header">🟢 Ready to Serve <span class="col-count" id="hdr-ready">0</span></div>
+    <div id="col-READY"></div>
+  </div>
+</div>
+
+<div class="alert-badge" id="alertBadge">🔔 NEW ORDER!</div>
+
+<script>
+  const API_BASE = '';
+  let orders = {};
+  let stompClient = null;
+
+  // ====== CLOCK ======
+  function updateClock() {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-IN', { hour12: false });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ====== LOAD INITIAL ORDERS ======
+  async function loadOrders() {
+    const res = await fetch(`${API_BASE}/api/orders/kitchen`);
+    const list = await res.json();
+    orders = {};
+    list.forEach(o => orders[o.id] = o);
+    renderAll();
+  }
+
+  // ====== WEBSOCKET ======
+  function connectWS() {
+    const socket = new SockJS(`${API_BASE}/ws`);
+    stompClient = Stomp.over(socket);
+    stompClient.debug = null;
+    stompClient.connect({}, () => {
+      stompClient.subscribe('/topic/kitchen', (msg) => {
+        const order = JSON.parse(msg.body);
+        const isNew = !orders[order.id];
+
+        if (['SERVED', 'CANCELLED', 'PAID'].includes(order.status)) {
+          delete orders[order.id];
+        } else {
+          orders[order.id] = order;
+        }
+
+        renderAll();
+        if (isNew && order.status === 'PENDING') showAlert();
+      });
+    });
+  }
+
+  // ====== RENDER ======
+  const STATUSES = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'];
+
+  function renderAll() {
+    STATUSES.forEach(status => {
+      const list = Object.values(orders).filter(o => o.status === status);
+      list.sort((a,b) => new Date(a.orderTime) - new Date(b.orderTime));
+      const col = document.getElementById(`col-${status}`);
+      const count = list.length;
+
+      // Update counters
+      document.getElementById(`cnt-${status.toLowerCase()}`).textContent = count;
+      document.getElementById(`hdr-${status.toLowerCase()}`).textContent = count;
+
+      if (count === 0) {
+        col.innerHTML = '<div class="empty-col">No orders here</div>';
+        return;
+      }
+      col.innerHTML = '';
+      list.forEach(order => col.appendChild(buildCard(order)));
+    });
+  }
+
+  function buildCard(order) {
+    const div = document.createElement('div');
+    const mins = Math.floor((Date.now() - new Date(order.orderTime).getTime()) / 60000);
+    const urgent = mins > 15;
+    const timeClass = mins < 5 ? 'time-ok' : mins < 15 ? 'time-warn' : 'time-urgent';
+    div.className = `order-card ${urgent ? 'urgent' : ''}`;
+
+    const itemsHtml = (order.items || []).map(item => `
+      <div class="order-item">
+        <div>
+          <span class="item-qty">×${item.quantity}</span>
+          <span class="item-nm">${item.menuItem?.name || 'Unknown'}</span>
+          ${item.specialNote ? `<span class="item-note">📝 ${item.specialNote}</span>` : ''}
+        </div>
+      </div>`).join('');
+
+    const actionBtns = getActionButtons(order.status, order.id);
+
+    div.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="table-num">🪑 TABLE ${order.tableNumber}</div>
+          <div class="customer-name">${order.customerName || 'Guest'}</div>
+          <div class="order-id">#${order.id}</div>
+        </div>
+        <span class="time-chip ${timeClass}">${mins}m ago</span>
+      </div>
+      <div class="card-items">${itemsHtml}</div>
+      ${order.specialInstructions ? `<div class="special-instr">📌 ${order.specialInstructions}</div>` : ''}
+      <div class="action-btns">${actionBtns}</div>`;
+    return div;
+  }
+
+  function getActionButtons(status, id) {
+    const map = {
+      'PENDING':   `<button class="action-btn btn-confirm" onclick="updateStatus(${id},'CONFIRMED')">✓ Confirm</button>
+                    <button class="action-btn btn-cancel" onclick="updateStatus(${id},'CANCELLED')">✗ Cancel</button>`,
+      'CONFIRMED': `<button class="action-btn btn-prepare" onclick="updateStatus(${id},'PREPARING')">🍳 Start Cooking</button>`,
+      'PREPARING': `<button class="action-btn btn-ready" onclick="updateStatus(${id},'READY')">✅ Mark Ready</button>`,
+      'READY':     `<button class="action-btn btn-ready" onclick="updateStatus(${id},'SERVED')">🍽 Mark Served</button>`
+    };
+    return map[status] || '';
+  }
+
+  async function updateStatus(orderId, newStatus) {
+    await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+  }
+
+  function showAlert() {
+    const badge = document.getElementById('alertBadge');
+    badge.style.display = 'block';
+    setTimeout(() => badge.style.display = 'none', 3000);
+    // Play browser beep
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      osc.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch(e) {}
+  }
+
+  // ====== BOOT ======
+  loadOrders();
+  connectWS();
+  setInterval(renderAll, 30000); // Refresh times every 30s
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\config\DataLoader.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\config\WebSocketConfig.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\controller\MenuController.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\controller\OrderController.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\controller\QRCodeController.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\model\MenuItem.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\model\Order.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\model\OrderItem.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\model\RestaurantTable.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\QRFoodOrderingApplication.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\repository\MenuItemRepository.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\repository\OrderRepository.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\repository\TableRepository.java
+D:\qr-food-ordering-college-project\src\main\java\com\qrfood\service\OrderService.java
